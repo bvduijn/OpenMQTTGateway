@@ -29,7 +29,7 @@
 #define user_config_h
 /*-------------------VERSION----------------------*/
 #ifndef OMG_VERSION
-#  define OMG_VERSION "0.9.12"
+#  define OMG_VERSION "version_tag"
 #endif
 
 /*-------------CONFIGURE WIFIMANAGER-------------(only ESP8266 & SONOFF RFBridge)*/
@@ -54,7 +54,7 @@
 // Any definition of Gateway_Name will be ignored. The Gateway_Short_name _ MAC will be used as the access point name.
 //#define USE_MAC_AS_GATEWAY_NAME
 #ifndef Gateway_Name
-#  define Gateway_Name "OMG0912"
+#  define Gateway_Name "OpenMQTTGateway"
 #endif
 #ifndef Gateway_Short_Name
 #  define Gateway_Short_Name "OMG"
@@ -71,8 +71,8 @@
 #  if defined(ESP8266) || defined(ESP32)
 const byte ip[] = {192, 168, 1, 99}; //ip adress of the gateway, already defined for arduino below
 #  endif
-const byte gateway[] = {192, 168, 40, 1};
-const byte Dns[] = {192, 168, 40, 1};
+const byte gateway[] = {0, 0, 0, 0};
+const byte Dns[] = {0, 0, 0, 0};
 const byte subnet[] = {255, 255, 255, 0};
 #endif
 
@@ -159,16 +159,16 @@ byte mac[] = { 0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x02}; //W5100 ethernet shield mac 
 #endif
 
 #ifndef MQTT_USER
-#  define MQTT_USER "homeassistant"
+#  define MQTT_USER "your_username"
 #endif
 #ifndef MQTT_PASS
-#  define MQTT_PASS "8Rdeurtje"
+#  define MQTT_PASS "your_password"
 #endif
 #ifndef MQTT_SERVER
-#  define MQTT_SERVER "192.168.40.11"
+#  define MQTT_SERVER "192.168.1.17"
 #endif
 #ifndef MQTT_PORT
-#  define MQTT_PORT 1883
+#  define MQTT_PORT "1883"
 #endif
 
 #if defined(ESP8266) || defined(ESP32)
@@ -485,11 +485,10 @@ int lowpowermode = DEFAULT_LOW_POWER_MODE;
 #define InitialMQTTConnectionTimeout 10 // time estimated (s) before the board is connected to MQTT
 #define subjectSYStoMQTT             "/SYStoMQTT"
 #define subjectMQTTtoSYSset          "/commands/MQTTtoSYS/config"
-#define MQTTsetMQTT
 
 /*-------------------DEFINE LOG LEVEL----------------------*/
 #ifndef LOG_LEVEL
-#  define LOG_LEVEL LOG_LEVEL_VERBOSE
+#  define LOG_LEVEL LOG_LEVEL_NOTICE
 #endif
 
 #endif
