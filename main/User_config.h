@@ -168,7 +168,7 @@ byte mac[] = { 0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x02}; //W5100 ethernet shield mac 
 #  define MQTT_SERVER "192.168.1.17"
 #endif
 #ifndef MQTT_PORT
-#  define MQTT_PORT "1883"
+#  define MQTT_PORT 1883
 #endif
 
 #if defined(ESP8266) || defined(ESP32)

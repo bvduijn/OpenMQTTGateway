@@ -24,10 +24,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "User_config.h"
+#include "config_DS1820.h"
 
 #ifdef ZsensorDS1820
-#  include <DallasTemperature.h>
-#  include <OneWire.h>
+#include "<DallasTemperature.h>"
+#include <OneWire.h>
 
 OneWire owbus(DS1820_OWBUS_GPIO);
 DallasTemperature ds1820(&owbus);

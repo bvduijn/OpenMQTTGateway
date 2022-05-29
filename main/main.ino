@@ -46,14 +46,14 @@ ReceivedSignal receivedSignal[] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
 //Time used to wait for an interval before checking system measures
 unsigned long timer_sys_measures = 0;
 #  define ARDUINOJSON_USE_LONG_LONG     1
-#  define ARDUINOJSON_ENABLE_STD_STRING 1
+#  define ARDUINOJSON_ENABLE_STD_STRING 0
 #endif
 
 #include <ArduinoJson.h>
 #include <ArduinoLog.h>
 #include <PubSubClient.h>
 
-#include <string>
+#include <string.h>
 
 StaticJsonDocument<JSON_MSG_BUFFER> modulesBuffer;
 JsonArray modules = modulesBuffer.to<JsonArray>();
@@ -166,7 +166,7 @@ void callback(char* topic, byte* payload, unsigned int length);
 char mqtt_user[parameters_size] = MQTT_USER; // not compulsory only if your broker needs authentication
 char mqtt_pass[parameters_size] = MQTT_PASS; // not compulsory only if your broker needs authentication
 char mqtt_server[parameters_size] = MQTT_SERVER;
-char mqtt_port[6] = MQTT_PORT;
+uint16_t mqtt_port = MQTT_PORT;
 char mqtt_topic[mqtt_topic_max_size] = Base_Topic;
 char gateway_name[parameters_size] = Gateway_Name;
 #ifdef USE_MAC_AS_GATEWAY_NAME
@@ -233,6 +233,7 @@ ESP8266WiFiMulti wifiMulti;
 #  endif
 
 #else
+#  include <SPI.h>
 #  include <Ethernet.h>
 #endif
 
@@ -603,6 +604,12 @@ void setup() {
   digitalWrite(LED_INFO, !LED_INFO_ON);
   digitalWrite(LED_ERROR, !LED_ERROR_ON);
 
+  //setup Reset for Arduino Mega
+#if __AVR_ATmega2560__ //arduino mega
+  digitalWrite(ResetPin, HIGH); // Set digital pin to 5V
+  pinMode(ResetPin, OUTPUT); // Set the digital pin to an OUTPUT pin
+#endif
+  
 #if defined(ESP8266) || defined(ESP32)
 #  ifdef ESP8266
 #    ifndef ZgatewaySRFB // if we are not in sonoff rf bridge case we apply the ESP8266 GPIO optimization
@@ -665,10 +672,9 @@ void setup() {
   Log.trace(F("Connecting to MQTT by mDNS without mqtt hostname" CR));
   connectMQTTmdns();
 #else
-  uint16_t port = strtol(mqtt_port, NULL, 10);
-  Log.trace(F("Port: %l" CR), port);
+  Log.trace(F("Port: %d" CR), mqtt_port);
   Log.trace(F("Mqtt server: %s" CR), mqtt_server);
-  client.setServer(mqtt_server, port);
+  client.setServer(mqtt_server, mqtt_port);
 #endif
 
   client.setCallback(callback);
@@ -1119,7 +1125,7 @@ void setup_wifimanager(bool reset_settings) {
         if (json.containsKey("mqtt_server"))
           strcpy(mqtt_server, json["mqtt_server"]);
         if (json.containsKey("mqtt_port"))
-          strcpy(mqtt_port, json["mqtt_port"]);
+          strcpy((char *)mqtt_port, json["mqtt_port"]);
         if (json.containsKey("mqtt_user"))
           strcpy(mqtt_user, json["mqtt_user"]);
         if (json.containsKey("mqtt_pass"))
@@ -1150,7 +1156,7 @@ void setup_wifimanager(bool reset_settings) {
   // id/name placeholder/prompt default length
 #  ifndef WIFIMNG_HIDE_MQTT_CONFIG
   WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqtt_server, parameters_size);
-  WiFiManagerParameter custom_mqtt_port("port", "mqtt port", mqtt_port, 6);
+  WiFiManagerParameter custom_mqtt_port("port", "mqtt port", (char *)mqtt_port, 6);
   WiFiManagerParameter custom_mqtt_user("user", "mqtt user", mqtt_user, parameters_size);
   WiFiManagerParameter custom_mqtt_pass("pass", "mqtt pass", mqtt_pass, parameters_size * 2);
   WiFiManagerParameter custom_mqtt_topic("topic", "mqtt base topic", mqtt_topic, mqtt_topic_max_size);
@@ -1231,7 +1237,7 @@ void setup_wifimanager(bool reset_settings) {
     //read updated parameters
 #  ifndef WIFIMNG_HIDE_MQTT_CONFIG
     strcpy(mqtt_server, custom_mqtt_server.getValue());
-    strcpy(mqtt_port, custom_mqtt_port.getValue());
+    strcpy((char *)mqtt_port, custom_mqtt_port.getValue());
     strcpy(mqtt_user, custom_mqtt_user.getValue());
     strcpy(mqtt_pass, custom_mqtt_pass.getValue());
     strcpy(mqtt_topic, custom_mqtt_topic.getValue());
@@ -1312,14 +1318,22 @@ void setup_ethernet() {
 #  ifdef NetworkAdvancedSetup
   Log.trace(F("Adv eth cfg" CR));
   Ethernet.begin(mac, ip, Dns, gateway, subnet);
+#  elif (USE_DHCP)
+  Log.trace(F("Adv eth cfg DHCP" CR));
+  if (Ethernet.begin(mac) == 0) {
+    Log.trace(F("Failed to configure Ethernet using DHCP" CR));
+  }
 #  else
   Log.trace(F("Spl eth cfg" CR));
   Ethernet.begin(mac, ip);
 #  endif
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     Log.error(F("Ethernet shield was not found." CR));
+  } else if (Ethernet.linkStatus() == LinkOFF) {
+      Serial.println("Ethernet cable is not connected.");
   } else {
-    Log.trace(F("ip: %s " CR), Ethernet.localIP());
+    IPAddress ip = Ethernet.localIP();
+    Log.trace(F("ip: %d.%d.%d.%d " CR), ip[0], ip[1], ip[2], ip[3]);
   }
 }
 #endif
@@ -1924,24 +1938,26 @@ void MQTTHttpsFWUpdate(char* topicOri, JsonObject& HttpsFwUpdateData) {
 void MQTTtoSYS(char* topicOri, JsonObject& SYSdata) { // json object decoding
   if (cmpToMainTopic(topicOri, subjectMQTTtoSYSset)) {
     Log.trace(F("MQTTtoSYS json" CR));
-#if defined(ESP8266) || defined(ESP32)
     if (SYSdata.containsKey("cmd")) {
       const char* cmd = SYSdata["cmd"];
       Log.notice(F("Command: %s" CR), cmd);
       if (strstr(cmd, restartCmd) != NULL) { //restart
 #  if defined(ESP8266)
         ESP.reset();
-#  else
+#  elif defined(ESP32)
         ESP.restart();
+#  else //Arduino case
+        digitalWrite(ResetPin, LOW);
 #  endif
       } else if (strstr(cmd, eraseCmd) != NULL) { //erase and restart
-#  ifndef ESPWifiManualSetup
+#  if defined(ESPWifiManualSetup) && (defined(ESP32) || defined(ESP8266))
         setup_wifimanager(true);
 #  endif
       } else if (strstr(cmd, statusCmd) != NULL) { //erase and restart
         stateMeasures();
       }
     }
+#if defined(ESP8266) || defined(ESP32)
 
     if (SYSdata.containsKey("wifi_ssid") && SYSdata.containsKey("wifi_pass")) {
 #  if defined(ZgatewayBT) && defined(ESP32)

@@ -28,6 +28,7 @@
 
 extern void setupDHT();
 extern void DHTtoMQTT();
+extern void MeasureTempAndHum();
 /*----------------------------USER PARAMETERS-----------------------------*/
 /*-------------DEFINE YOUR MQTT PARAMETERS BELOW----------------*/
 #define DHTTOPIC              "/DHTtoMQTT/dht1"
